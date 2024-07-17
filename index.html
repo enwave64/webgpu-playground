@@ -138,15 +138,18 @@
     pass.draw(vertices.length / 2) // 6 vertices
     //always need to end
     pass.end()
-    // once we finish, we get a command buffer
-    // an opaque handle to recorded commands
-    const commandBuffer = encoder.finish()
-    // submit the command buffer to the GPU using the queue of the GPUDevice
-    // this queue performs alll GPU commands, ensuring that their execution is well ordered
-    // and properly synchronized
-    device.queue.submit([commandBuffer])
+    // // once we finish, we get a command buffer
+    // // an opaque handle to recorded commands
+    // const commandBuffer = encoder.finish()
+
+    // // submit the command buffer to the GPU using the queue of the GPUDevice
+    // // this queue performs alll GPU commands, ensuring that their execution is well ordered
+    // // and properly synchronized
+    // device.queue.submit([commandBuffer])
+
     // Finish the command buffer and immediately submit it,
     // returning control to the browser
+    // this is the previous steps combined
     device.queue.submit([encoder.finish()])
   </script>
 </body>
