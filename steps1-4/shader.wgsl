@@ -1,9 +1,5 @@
 // https://codelabs.developers.google.com/your-first-webgpu-app#3:~:text=Define%20the%20vertex%20shader
 
-// defines a uniform, a 2d float vector that matches the uniform buffer
-// the uniform is specified to be bound at @group(0) and @binding(0)
-@group(0) @binding(0) var<uniform> grid: vec2f;
-
 // A vertex shader must return at least the final position of the vertex
 // being processed in clip space. This is always given as a 4D vector
 // must have @vertex attribute
@@ -20,17 +16,7 @@
 
 @vertex
 fn vertexMain(@location(0) pos: vec2f) -> @builtin(position) vec4f {
-
-    // Add 1 to the position before dividing by the grid size
-    // note that let in wgsl is like JS const; if you need mutable use var
-    // pos is doign a component-wise add: like pos + vec2f(1, 1)
-    // same goes for grid - 1
-    let cell = vec2f(1, 1); // Cell(1,1) in the grid image
-    // since the canvas coordinates go from -1 to +1, it's actually 2 units across. That means if you want to move a vertex one-fourth of the canvas over, you have to move it 0.5 units. 
-    let cellOffset = cell / grid * 2; // Compute the offset to the cell. The 2 is for moving the 0.5 units
-    let gridPos = (pos + 1) / grid - 1 + cellOffset;
-    // this division is component wise, like vec2f(pos.x / grid.x, pos.y / grid.y)
-    return vec4f(gridPos, 0, 1); // pos here maps to pos.x and pos.y
+    return vec4f(pos, 0, 1); // pos here maps to pos.x and pos.y
 }
 
 // Fragment shaders are similar to vertex, but they are invoked for every pixel drawn
@@ -47,5 +33,3 @@ fn vertexMain(@location(0) pos: vec2f) -> @builtin(position) vec4f {
 fn fragmentMain() -> @location(0) vec4f {
     return vec4f(0.2, 1, 0.74, 1);
 }
-
-
