@@ -19,6 +19,10 @@ struct VertexOutput {
 // the uniform is specified to be bound at @group(0) and @binding(0)
 @group(0) @binding(0) var<uniform> grid: vec2f;
 
+// defines the storage buffer
+// note the binding number increase here
+@group(0) @binding(1) var<storage> cellState: array<u32>;
+
 // A vertex shader must return at least the final position of the vertex
 // being processed in clip space. This is always given as a 4D vector
 // must have @vertex attribute
@@ -55,10 +59,15 @@ fn vertexMain(input: VertexInput) -> VertexOutput{
     // floor of i divided by grid width so we gradually increment: 0,0,0,0 ; 1,1,1,1 etc 
     let cell = vec2f(i % grid.x, floor(i / grid.x));
 
+    // grab cell state
+    let state = f32(cellState[input.instance]);
+
 
     // since the canvas coordinates go from -1 to +1, it's actually 2 units across. That means if you want to move a vertex one-fourth of the canvas over, you have to move it 0.5 units. 
     let cellOffset = cell / grid * 2; // Compute the offset to the cell. The 2 is for moving the 0.5 units
-    let gridPos = (input.pos + 1) / grid - 1 + cellOffset;
+
+    // multiply times state for scaling: if you get a 0, collapses to a single point and gets discarded
+    let gridPos = (input.pos * state + 1) / grid - 1 + cellOffset;
     // Need to use a struct now that we are returning a struct
     var output: VertexOutput;
     // this division is component wise, like vec2f(pos.x / grid.x, pos.y / grid.y)
