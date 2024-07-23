@@ -7,10 +7,10 @@
   <title>WebGPU Life</title>
 </head>
 
-<body>
+<body style="background-color: rgb(46, 42, 42);">
   <canvas width="512" height="512"></canvas>
   <script type="module">
-    const GRID_SIZE = 4
+    const GRID_SIZE = 32
     // https://codelabs.developers.google.com/your-first-webgpu-app#2
     const canvas = document.querySelector("canvas")
 
@@ -167,7 +167,7 @@
     pass.setPipeline(cellPipeline)
     pass.setVertexBuffer(0, vertexBuffer)
     pass.setBindGroup(0, bindGroup)
-    pass.draw(vertices.length / 2) // 6 vertices
+    pass.draw(vertices.length / 2, GRID_SIZE * GRID_SIZE) // 6 vertices, gridXgrid times
     //always need to end
     pass.end()
     // // once we finish, we get a command buffer

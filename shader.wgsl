@@ -19,13 +19,27 @@
  
 
 @vertex
-fn vertexMain(@location(0) pos: vec2f) -> @builtin(position) vec4f {
+fn vertexMain(@location(0) pos: vec2f, @builtin(instance_index) instance: u32) -> @builtin(position) vec4f {
 
-    // Add 1 to the position before dividing by the grid size
-    // note that let in wgsl is like JS const; if you need mutable use var
-    // pos is doign a component-wise add: like pos + vec2f(1, 1)
-    // same goes for grid - 1
-    let cell = vec2f(1, 1); // Cell(1,1) in the grid image
+    // // Add 1 to the position before dividing by the grid size
+    // // note that let in wgsl is like JS const; if you need mutable use var
+    // // pos is doign a component-wise add: like pos + vec2f(1, 1)
+    // // same goes for grid - 1
+    // let cell = vec2f(1, 1); // Cell(1,1) in the grid image
+
+    // // but lets save the instance index as a float now and use that instead
+    // // the f32() is effectively a typecast from the u32
+    let i = f32(instance);
+
+    // // this is create, but it it just gives you a diagonal
+    // let cell = vec2f(i, i); // Cell(1,1) in the grid image
+    
+    // instead, we need some math; compute the cell coordinate from the instance_index
+    // modulo over grid width so we cycle throug on repetition: 0,1,2,3 ; 0,1,2,3, etc
+    // floor of i divided by grid width so we gradually increment: 0,0,0,0 ; 1,1,1,1 etc 
+    let cell = vec2f(i % grid.x, floor(i / grid.x));
+
+
     // since the canvas coordinates go from -1 to +1, it's actually 2 units across. That means if you want to move a vertex one-fourth of the canvas over, you have to move it 0.5 units. 
     let cellOffset = cell / grid * 2; // Compute the offset to the cell. The 2 is for moving the 0.5 units
     let gridPos = (pos + 1) / grid - 1 + cellOffset;
