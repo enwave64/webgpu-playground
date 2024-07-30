@@ -1,0 +1,157 @@
+<!doctype html>
+
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>WebGPU Life</title>
+</head>
+
+<body>
+  <canvas width="512" height="512"></canvas>
+  <script type="module">
+    // https://codelabs.developers.google.com/your-first-webgpu-app#2
+    const canvas = document.querySelector("canvas")
+
+    // webGPU browser support check
+    if (!navigator.gpu) {
+      throw new Error("WebGPU not supported on this browser.")
+    }
+
+    // host gpu support check
+    const adapter = await navigator.gpu.requestAdapter()
+    if (!adapter) {
+      throw new Error("No appropriate GPUAdapter found.")
+    }
+
+    // just requesting the default device for now, but can pass flags
+    // to get different kinds
+    const device = await adapter.requestDevice()
+
+    // create a context for canvas
+    const context = canvas.getContext("webgpu")
+    //configure the context with a canvas format
+    const canvasFormat = navigator.gpu.getPreferredCanvasFormat()
+    context.configure({
+      device,
+      format: canvasFormat,
+    })
+
+    //we need a command encoder
+    const encoder = device.createCommandEncoder()
+
+    // these render passes are key
+    const pass = encoder.beginRenderPass({
+      colorAttachments: [{
+        // Render passes require we provide a GPUTextureView, which tells it which parts of
+        // the texture to render to
+        view: context.getCurrentTexture().createView(),
+        loadOp: "clear",
+        // a clearValue instructs the render pass which color it should use when performing 
+        // the clear operation at the beggining of the pass. The dict has RGB and Alpha (transparency)
+        // each value can range from 0 to 1
+        clearValue: { r: 0, g: 0, b: 0.4, a: 1 }, // New line
+        storeOp: "store",
+      }]
+    })
+    // vertex data with JS TypedArrays
+    // recall that WebGPU works in triangles
+    // for each one you need a set of 3 vertices
+    const vertices = new Float32Array([
+      //   X,    Y,
+      -0.8, -0.8, // Triangle 1 (Blue)
+      0.8, -0.8,
+      0.8, 0.8,
+
+      -0.8, -0.8, // Triangle 2 (Red/Other)
+      0.8, 0.8,
+      -0.8, 0.8,
+    ])
+
+    // GPUs have highly optimized memory
+    // a GPUBuffer translates a JS array to that memory
+    // for many values, including vertex data
+    const vertexBuffer = device.createBuffer({
+      label: "Cell vertices",
+      size: vertices.byteLength, // # floats (6*2) * bytesize of float (4)
+      usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST,
+    })
+
+    // Copy the vertex data into the buffer's memory
+    device.queue.writeBuffer(vertexBuffer, /*bufferOffset=*/0, vertices)
+
+    // We tell WebGPU more about the structure of the vertex data with a 
+    // GPUVertexBufferLayout dictionary
+    const vertexBufferLayout = {
+      // arrayStride: the number of bytes the GPU needs to skip forward in the buffer when
+      // it's looking for the next vertex
+      arrayStride: 8, //each vertex is two Float32s, so 2 X 4 bytes
+      attributes: [{
+        format: "float32x2", // format types: https://gpuweb.github.io/gpuweb/#enumdef-gpuvertexformat
+        offset: 0, // how many bytes into the vertex this particular attribute starts (if buffer has 2+ attr)
+        shaderLocation: 0 //Position, see vertex shader. Must be unique for each attribute, 0-15
+      }]
+    }
+
+    //load WGSL shader code from external file
+    const response = await fetch('shader.wgsl')
+    const shaderCode = await response.text()
+
+    const cellShaderModule = device.createShaderModule({
+      label: "Cell shader",
+      code: shaderCode,
+      /* Inline WGSL */
+      // code: `
+      //   @vertex
+      //   fn vertexMain(@location(0) pos: vec2f) ->
+      //     @builtin(position) vec4f {
+      //     return vec4f(pos, 0, 1);
+      //   }
+
+      //   @fragment
+      //   fn fragmentMain() -> @location(0) vec4f {
+      //     return vec4f(1, 0, 0, 1);
+      //   }
+      // `,
+    })
+
+    //shaders are used as a parto of a GPURenderPipeline
+    const cellPipeline = device.createRenderPipeline({
+      label: "Cell pipeline",
+      layout: "auto",
+      vertex: {
+        module: cellShaderModule,
+        entryPoint: "vertexMain",
+        buffers: [vertexBufferLayout]
+      },
+      fragment: {
+        module: cellShaderModule,
+        entryPoint: "fragmentMain",
+        targets: [{
+          format: canvasFormat
+        }]
+      }
+    })
+    // actually draw the friggin square lol
+    pass.setPipeline(cellPipeline)
+    pass.setVertexBuffer(0, vertexBuffer)
+    pass.draw(vertices.length / 2) // 6 vertices
+    //always need to end
+    pass.end()
+    // // once we finish, we get a command buffer
+    // // an opaque handle to recorded commands
+    // const commandBuffer = encoder.finish()
+
+    // // submit the command buffer to the GPU using the queue of the GPUDevice
+    // // this queue performs alll GPU commands, ensuring that their execution is well ordered
+    // // and properly synchronized
+    // device.queue.submit([commandBuffer])
+
+    // Finish the command buffer and immediately submit it,
+    // returning control to the browser
+    // this is the previous steps combined
+    device.queue.submit([encoder.finish()])
+  </script>
+</body>
+
+</html>
