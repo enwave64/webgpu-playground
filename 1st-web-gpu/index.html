@@ -7,28 +7,40 @@
   <title>WebGPU Life</title>
 </head>
 
-<body style="background-color: rgb(182, 80, 80);">
-  <canvas width="512" height="512" style="background-color: rgb(182, 80, 80);"></canvas>
+<body style="background-color: rgb(46, 42, 42);">
+  <canvas width="512" height="512"></canvas>
   <script type="module">
     const GRID_SIZE = 32
+    const UPDATE_INTERVAL = 200 // Update every 200ms (5 times/sec)
     const WORKGROUP_SIZE = 8
-    const UPDATE_INTERVAL = 200; // Update every 200ms (5 times/sec)
     let step = 0; // Track how many simulation steps have been run
 
     // Move all of our rendering code into a function
     const updateGrid = () => {
-      const encoder = device.createCommandEncoder();
-      const computePass = encoder.beginComputePass();
+      const encoder = device.createCommandEncoder()
+      const computePass = encoder.beginComputePass()
 
-      computePass.setPipeline(simulationPipeline);
-      computePass.setBindGroup(0, bindGroups[step % 2]);
+      // Compute work
+      computePass.setPipeline(simulationPipeline)
+      computePass.setBindGroup(0, bindGroups[step % 2])
+      const workgroupCount = Math.ceil(GRID_SIZE / WORKGROUP_SIZE)
+      computePass.dispatchWorkgroups(workgroupCount, workgroupCount)
 
-      // New lines
-      const workgroupCount = Math.ceil(GRID_SIZE / WORKGROUP_SIZE);
-      computePass.dispatchWorkgroups(workgroupCount, workgroupCount);
 
-      computePass.end();
-      step++;
+      computePass.end()
+
+
+      step++; // Increment the step count
+
+      // Start a render pass 
+      const pass = encoder.beginRenderPass({
+        colorAttachments: [{
+          view: context.getCurrentTexture().createView(),
+          loadOp: "clear",
+          clearValue: { r: 0, g: 0, b: 0.4, a: 1.0 },
+          storeOp: "store",
+        }]
+      })
 
       // Draw the grid.
       pass.setPipeline(cellPipeline);
@@ -130,11 +142,8 @@
     }
 
     //load WGSL shader code from external file
-    let response = await fetch('shader.wgsl')
+    const response = await fetch('shader.wgsl')
     const shaderCode = await response.text()
-
-    // response = await fetch('computeShader.wgsl')
-    // const computeShaderCode = await response.text()
 
     const cellShaderModule = device.createShaderModule({
       label: "Cell shader",
@@ -154,13 +163,44 @@
       // `,
     })
 
+    //load WGSL compute code from external file
+    const response_c = await fetch('compute.wgsl')
+    const shaderCode_c = await response_c.text()
+
+    // Create the compute shader that will process the simulation.
+    const simulationShaderModule = device.createShaderModule({
+      label: "Game of Life simulation shader",
+      code: shaderCode_c,
+      /* Inline WGSL */
+      // code: `
+      //   @group(0) @binding(0) var<uniform> grid: vec2f;
+      //   @group(0) @binding(1) var<storage> cellStateIn: array<u32>;
+      //   @group(0) @binding(2) var<storage, read_write> cellStateOut: array<u32>;
+
+      //   fn cellIndex(cell: vec2u) -> u32 {
+      //     return cell.y * u32(grid.x) + cell.x;
+      //   }
+
+
+      //   @compute
+      //   @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE})
+      //   fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
+      //     // Flip the cell state every step.
+      //     if (cellStateIn[cellIndex(cell.xy)] == 1) {
+      //       cellStateOut[cellIndex(cell.xy)] = 0;
+      //     } else {
+      //       cellStateOut[cellIndex(cell.xy)] = 1;
+      //     }
+      //   }`
+    })
+
     // Create the bind group layout and pipeline layout.
     const bindGroupLayout = device.createBindGroupLayout({
       label: "Cell Bind Group Layout",
       entries: [{
         binding: 0,
-        // Add GPUShaderStage.FRAGMENT here if you are using the `grid` uniform in the fragment shader.
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
+        // Add GPUShaderStage.FRAGMENT here: we are using the `grid` uniform in the fragment shader.
+        visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
         buffer: {} // Grid uniform buffer
       }, {
         binding: 1,
@@ -173,36 +213,22 @@
       }]
     })
 
-    // Create the compute shader that will process the simulation.
-    const simulationShaderModule = device.createShaderModule({
-      label: "Game of Life simulation shader",
-      code: `@group(0) @binding(0) var<uniform> grid: vec2f;
-
-        @group(0) @binding(1) var<storage> cellStateIn: array<u32>;
-        @group(0) @binding(2) var<storage, read_write> cellStateOut: array<u32>;
-          
-        fn cellIndex(cell: vec2u) -> u32 {
-          return cell.y * u32(grid.x) + cell.x;
-        }
-
-        @compute @workgroup_size(${WORKGROUP_SIZE}, ${WORKGROUP_SIZE})
-        fn computeMain(@builtin(global_invocation_id) cell: vec3u) {
-          // New lines. Flip the cell state every step.
-          if (cellStateIn[cellIndex(cell.xy)] == 1) {
-            cellStateOut[cellIndex(cell.xy)] = 0;
-          } else {
-            cellStateOut[cellIndex(cell.xy)] = 1;
-          }
-        }
-      `,
-    });
-
     const pipelineLayout = device.createPipelineLayout({
       label: "Cell Pipeline Layout",
       bindGroupLayouts: [bindGroupLayout],
     })
 
-    //shaders are used as a part of a GPURenderPipeline
+    // Create a compute pipeline that updates the game state.
+    const simulationPipeline = device.createComputePipeline({
+      label: "Simulation pipeline",
+      layout: pipelineLayout,
+      compute: {
+        module: simulationShaderModule,
+        entryPoint: "computeMain",
+      }
+    })
+
+    //shaders are used as a parto of a GPURenderPipeline
     const cellPipeline = device.createRenderPipeline({
       label: "Cell pipeline",
       layout: pipelineLayout,
@@ -219,15 +245,6 @@
         }]
       }
     })
-    // Create a compute pipeline that updates the game state.
-    const simulationPipeline = device.createComputePipeline({
-      label: "Simulation pipeline",
-      layout: pipelineLayout,
-      compute: {
-        module: simulationShaderModule,
-        entryPoint: "computeMain",
-      }
-    });
     // A uniform is a value from a buffer that is the same for every invocation. 
     // They're useful for communicating values that are common for a piece of geometry (like position),
     // a full frame of animation (like the current time), or even the entire lifespan of the app (like user pref)
@@ -278,6 +295,30 @@
     // can include serveral type of buffers, like our uniform buffer, and other resources like textures
     // and samplers that are not covered here but are common parts of WebGPU rendering techniques
 
+    // const bindGroups = [
+    //   device.createBindGroup({
+    //     label: "Cell renderer bind group A",
+    //     layout: cellPipeline.getBindGroupLayout(0),
+    //     entries: [{
+    //       binding: 0,
+    //       resource: { buffer: uniformBuffer }
+    //     }, {
+    //       binding: 1,
+    //       resource: { buffer: cellStateStorage[0] }
+    //     }],
+    //   }),
+    //   device.createBindGroup({
+    //     label: "Cell renderer bind group B",
+    //     layout: cellPipeline.getBindGroupLayout(0),
+    //     entries: [{
+    //       binding: 0,
+    //       resource: { buffer: uniformBuffer }
+    //     }, {
+    //       binding: 1,
+    //       resource: { buffer: cellStateStorage[1] }
+    //     }],
+    //   })
+    // ]
     // Create a bind group to pass the grid uniforms into the pipeline
     const bindGroups = [
       device.createBindGroup({
@@ -309,7 +350,7 @@
           resource: { buffer: cellStateStorage[0] }
         }],
       }),
-    ];
+    ]
 
     // Schedule updateGrid() to run repeatedly
     setInterval(updateGrid, UPDATE_INTERVAL);
