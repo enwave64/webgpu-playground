@@ -1,6 +1,6 @@
 const FONT_PATH = 'Roboto-Regular.png'
 
-const vsShaderCode = `
+const vsShaderCode = /* wgsl */`
 struct VertexOutput {
   @builtin(position) position: vec4<f32>,
   @location(0) uv: vec2<f32>,
@@ -16,7 +16,7 @@ fn vs_main(@location(0) position: vec4<f32>, @location(1) uv: vec2<f32>) -> Vert
 `;
 
 // Enhanced Fragment Shader Code for Black Text with White Outline on Orange Background
-const fsShaderCode = `
+const fsShaderCode = /* wgsl */`
 @group(0) @binding(0) var myTexture: texture_2d<f32>;
 @group(0) @binding(1) var mySampler: sampler;
 
