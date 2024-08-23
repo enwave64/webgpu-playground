@@ -103,7 +103,19 @@
       device.queue.submit([commandBuffer])
     }
 
-    render()
+    // render()
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const canvas = entry.target
+        const width = entry.contentBoxSize[0].inlineSize
+        const height = entry.contentBoxSize[0].blockSize
+        canvas.width = Math.max(1, Math.min(width, device.limits.maxTextureDimension2D))
+        canvas.height = Math.max(1, Math.min(height, device.limits.maxTextureDimension2D))
+        //re-render
+        render()
+      }
+    })
+    observer.observe(canvas)
   }
 
   const fail = () => {
@@ -112,5 +124,18 @@
 
   main()
 </script>
+<style>
+  html,
+  body {
+    margin: 0;
+    height: 100%;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+</style>
 
 </html>
